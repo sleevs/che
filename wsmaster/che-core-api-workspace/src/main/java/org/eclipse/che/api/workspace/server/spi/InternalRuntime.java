@@ -91,6 +91,13 @@ public abstract class InternalRuntime<T extends RuntimeContext> implements Runti
   protected abstract Map<String, ? extends Machine> getInternalMachines();
 
   /**
+   * Returns workspace status.
+   */
+  public WorkspaceStatus getStatus() {
+    return status == null ? WorkspaceStatus.STOPPED : status;
+  }
+
+  /**
    * Starts Runtime. In practice this method launching supposed to take unpredictable long time so
    * normally it should be launched in separated thread
    *

@@ -17,6 +17,8 @@ import com.google.inject.AbstractModule;
 import com.google.inject.assistedinject.FactoryModuleBuilder;
 import com.google.inject.multibindings.MapBinder;
 import com.google.inject.multibindings.Multibinder;
+import org.eclipse.che.api.workspace.server.ReplicatedWorkspaceStatusCache;
+import org.eclipse.che.api.workspace.server.WorkspaceStatusCache;
 import org.eclipse.che.api.workspace.server.spi.RuntimeInfrastructure;
 import org.eclipse.che.api.workspace.server.spi.environment.InternalEnvironmentFactory;
 import org.eclipse.che.api.workspace.server.spi.provision.env.CheApiEnvVarProvider;
@@ -69,5 +71,7 @@ public class OpenShiftInfraModule extends AbstractModule {
     Multibinder<EnvVarProvider> envVarProviders =
         Multibinder.newSetBinder(binder(), EnvVarProvider.class);
     envVarProviders.addBinding().to(LogsRootEnvVariableProvider.class);
+
+    bind(WorkspaceStatusCache.class).to(ReplicatedWorkspaceStatusCache.class);
   }
 }

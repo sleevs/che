@@ -14,7 +14,9 @@ import com.google.inject.AbstractModule;
 import com.google.inject.assistedinject.FactoryModuleBuilder;
 import com.google.inject.multibindings.MapBinder;
 import com.google.inject.multibindings.Multibinder;
+import org.eclipse.che.api.workspace.server.DefaultWorkspaceStatusCache;
 import org.eclipse.che.api.workspace.server.URLRewriter;
+import org.eclipse.che.api.workspace.server.WorkspaceStatusCache;
 import org.eclipse.che.api.workspace.server.spi.RuntimeInfrastructure;
 import org.eclipse.che.api.workspace.server.spi.provision.env.CheApiEnvVarProvider;
 import org.eclipse.che.infrastructure.docker.client.DockerRegistryDynamicAuthResolver;
@@ -82,5 +84,7 @@ public class DockerInfraModule extends AbstractModule {
     bind(SinglePortHostnameBuilder.class).toProvider(SinglePortHostnameBuilderProvider.class);
 
     bind(URLRewriter.class).toProvider(UrlRewriterProvider.class);
+
+    bind(WorkspaceStatusCache.class).to(DefaultWorkspaceStatusCache.class);
   }
 }
