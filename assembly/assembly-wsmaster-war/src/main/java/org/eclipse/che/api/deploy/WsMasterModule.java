@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.eclipse.che.agent.exec.client.ExecAgentClientFactory;
-import org.eclipse.che.api.core.notification.InmemoryRemoteSubscriptionStorage;
 import org.eclipse.che.api.core.notification.RemoteSubscriptionStorage;
 import org.eclipse.che.api.core.rest.CheJsonProvider;
 import org.eclipse.che.api.core.rest.MessageBodyAdapter;
