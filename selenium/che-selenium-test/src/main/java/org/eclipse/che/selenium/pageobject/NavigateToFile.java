@@ -11,42 +11,39 @@
 package org.eclipse.che.selenium.pageobject;
 
 import static java.lang.String.format;
-import static org.eclipse.che.selenium.core.constant.TestTimeoutsConstants.LOAD_PAGE_TIMEOUT_SEC;
-import static org.eclipse.che.selenium.core.constant.TestTimeoutsConstants.REDRAW_UI_ELEMENTS_TIMEOUT_SEC;
 import static org.openqa.selenium.Keys.ALT;
 import static org.openqa.selenium.Keys.CONTROL;
 import static org.openqa.selenium.Keys.ESCAPE;
-import static org.openqa.selenium.support.ui.ExpectedConditions.invisibilityOfElementLocated;
-import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOf;
-import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOfElementLocated;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import org.eclipse.che.selenium.core.SeleniumWebDriver;
 import org.eclipse.che.selenium.core.action.ActionsFactory;
-import org.eclipse.che.selenium.core.utils.WaitUtils;
+import org.eclipse.che.selenium.core.webdriver.SeleniumWebDriverHelper;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.PageFactory;
-import org.openqa.selenium.support.ui.WebDriverWait;
 
 /** Created by aleksandr shmaraev on 12.12.14. */
 @Singleton
 public class NavigateToFile {
 
   private final SeleniumWebDriver seleniumWebDriver;
+  private final SeleniumWebDriverHelper seleniumWebDriverHelper;
   private final Loader loader;
   private final ActionsFactory actionsFactory;
   private final TestWebElementRenderChecker testWebElementRenderChecker;
 
   @Inject
   public NavigateToFile(
+      SeleniumWebDriverHelper seleniumWebDriverHelper,
       SeleniumWebDriver seleniumWebDriver,
       Loader loader,
       ActionsFactory actionsFactory,
       TestWebElementRenderChecker testWebElementRenderChecker) {
+    this.seleniumWebDriverHelper = seleniumWebDriverHelper;
     this.seleniumWebDriver = seleniumWebDriver;
     this.loader = loader;
     this.actionsFactory = actionsFactory;
@@ -59,9 +56,9 @@ public class NavigateToFile {
     String FILE_NAME_INPUT = "gwt-debug-navigateToFile-fileName";
     String SUGGESTION_PANEL = "gwt-debug-navigateToFile-suggestionPanel";
     String FILE_NAME_LIST_SELECT_WITH_PATH =
-        "//div[@id='gwt-debug-navigateToFile-suggestionPanel']//div[last()]//tr[contains(., '%s')]";
+        "//div[@id='gwt-debug-navigateToFile-suggestionPanel']//tr[contains(.,'%s')]";
     String FILE_NAME_LIST_SELECT =
-        "//div[@id='gwt-debug-navigateToFile-suggestionPanel']//div[last()]//td[text()='%s']";
+        "//div[@id='gwt-debug-navigateToFile-suggestionPanel']//td[text()='%s']";
   }
 
   @FindBy(id = Locators.NAVIGATE_TO_FILE_FORM)
@@ -75,19 +72,16 @@ public class NavigateToFile {
 
   /** wait opening of 'Navigate to file' widget */
   public void waitFormToOpen() {
-    new WebDriverWait(seleniumWebDriver, LOAD_PAGE_TIMEOUT_SEC)
-        .until(visibilityOf(navigateToFileForm));
+    seleniumWebDriverHelper.waitVisibility(navigateToFileForm);
   }
 
   /** wait closing of 'Navigate to file' widget */
   public void waitFormToClose() {
-    new WebDriverWait(seleniumWebDriver, LOAD_PAGE_TIMEOUT_SEC)
-        .until(invisibilityOfElementLocated(By.id(Locators.NAVIGATE_TO_FILE_FORM)));
+    seleniumWebDriverHelper.waitInvisibility(navigateToFileForm);
   }
 
   /** launch the 'Navigate To File' widget by keyboard (with Ctrl + 'n' keys) */
   public void launchNavigateToFileByKeyboard() {
-    loader.waitOnClosed();
     Actions action = actionsFactory.createAction(seleniumWebDriver);
     action.keyDown(CONTROL).keyDown(ALT).sendKeys("n").keyUp(CONTROL).keyUp(ALT).perform();
   }
@@ -98,11 +92,12 @@ public class NavigateToFile {
    * @param symbol the first symbol of search with key word
    */
   public void typeSymbolInFileNameField(String symbol) {
-    loader.waitOnClosed();
-    new WebDriverWait(seleniumWebDriver, LOAD_PAGE_TIMEOUT_SEC).until(visibilityOf(fileNameInput));
-    fileNameInput.clear();
-    WaitUtils.sleepQuietly(1); // timeout for waiting that input field is cleared
-    fileNameInput.sendKeys(symbol);
+    seleniumWebDriverHelper.setValue(fileNameInput, symbol);
+    //    new WebDriverWait(seleniumWebDriver,
+    // LOAD_PAGE_TIMEOUT_SEC).until(visibilityOf(fileNameInput));
+    //    fileNameInput.clear();
+    //    WaitUtils.sleepQuietly(1); // timeout for waiting that input field is cleared
+    //    fileNameInput.sendKeys(symbol);
   }
 
   /**
@@ -111,7 +106,7 @@ public class NavigateToFile {
    * @param symbol the first symbol of search with key word
    */
   public void typeSymbolWithoutClear(String symbol) {
-    new WebDriverWait(seleniumWebDriver, LOAD_PAGE_TIMEOUT_SEC).until(visibilityOf(fileNameInput));
+    seleniumWebDriverHelper.waitVisibility(fileNameInput);
     fileNameInput.sendKeys(symbol);
   }
 
@@ -138,11 +133,8 @@ public class NavigateToFile {
    * @param pathName full name - means the name of file with path
    */
   public void selectFileByFullName(String pathName) {
-    new WebDriverWait(seleniumWebDriver, REDRAW_UI_ELEMENTS_TIMEOUT_SEC)
-        .until(
-            visibilityOfElementLocated(
-                By.xpath(format(Locators.FILE_NAME_LIST_SELECT_WITH_PATH, pathName))))
-        .click();
+    seleniumWebDriverHelper.waitAndClick(
+        By.xpath(format(Locators.FILE_NAME_LIST_SELECT_WITH_PATH, pathName)));
     actionsFactory.createAction(seleniumWebDriver).doubleClick().perform();
     waitFormToClose();
   }
@@ -150,14 +142,12 @@ public class NavigateToFile {
   /**
    * select the defined item with just name of a file (path to file we can not specify)
    *
-   * @param nameOfFile name of a file for searching
+   * @param fileName name of a file for searching
    */
-  public void selectFileByName(String nameOfFile) {
+  public void selectFileByName(String fileName) {
     WebElement webElement =
-        new WebDriverWait(seleniumWebDriver, REDRAW_UI_ELEMENTS_TIMEOUT_SEC)
-            .until(
-                visibilityOfElementLocated(
-                    By.xpath(format(Locators.FILE_NAME_LIST_SELECT, nameOfFile))));
+        seleniumWebDriverHelper.waitVisibility(
+            By.xpath(format(Locators.FILE_NAME_LIST_SELECT, fileName)));
     webElement.click();
     testWebElementRenderChecker.waitElementIsRendered(webElement);
     actionsFactory.createAction(seleniumWebDriver).doubleClick(webElement).perform();
