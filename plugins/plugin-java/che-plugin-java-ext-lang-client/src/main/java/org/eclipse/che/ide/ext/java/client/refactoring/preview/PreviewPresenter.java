@@ -10,18 +10,10 @@
  */
 package org.eclipse.che.ide.ext.java.client.refactoring.preview;
 
-import static java.util.stream.Collectors.toList;
-
 import com.google.common.base.Optional;
 import com.google.gwt.dom.client.Document;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import org.eclipse.che.api.languageserver.util.URIUtil;
 import org.eclipse.che.api.promises.client.Promise;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.resources.Container;
@@ -37,6 +29,14 @@ import org.eclipse.lsp4j.ResourceChange;
 import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.WorkspaceEdit;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * @author Dmitry Shnurenko
@@ -125,7 +125,7 @@ public class PreviewPresenter implements PreviewView.ActionDelegate {
   }
 
   private void updateContentInCompareWidget(PreviewNode selectedNode, List<TextEdit> edits) {
-    String path = URIUtil.removePrefixUri(selectedNode.getUri());
+    String path = selectedNode.getUri();
     Container workspaceRoot = appContext.getWorkspaceRoot();
     Promise<Optional<File>> file = workspaceRoot.getFile(path);
     file.then(
@@ -239,18 +239,16 @@ public class PreviewPresenter implements PreviewView.ActionDelegate {
                   + Path.valueOf(newUri).lastSegment()
                   + "'");
         } else {
-          String pathString = URIUtil.removePrefixUri(newUri);
           node.setDescription(
               "Move resource '"
                   + Path.valueOf(current).lastSegment()
                   + "' to '"
-                  + Path.valueOf(pathString).removeLastSegments(1)
+                  + Path.valueOf(newUri).removeLastSegments(1)
                   + "'");
         }
         fileNodes.put(newUri, node);
       } else if (current == null && newUri != null) {
-        String pathString = URIUtil.removePrefixUri(newUri);
-        node.setDescription("Create resource: '" + Path.valueOf(pathString) + "'");
+        node.setDescription("Create resource: '" + Path.valueOf(newUri) + "'");
         fileNodes.put(newUri, node);
       }
     }
@@ -263,7 +261,7 @@ public class PreviewPresenter implements PreviewView.ActionDelegate {
       parent.setEnable(true);
       String uniqueId = Document.get().createUniqueId();
       parent.setId(uniqueId);
-      Path path = Path.valueOf(URIUtil.removePrefixUri(uri));
+      Path path = Path.valueOf(uri);
       parent.setDescription(path.lastSegment() + " - " + path.removeLastSegments(1));
       fileNodes.put(uri, parent);
       for (TextEdit change : changes.get(uri)) {

@@ -10,10 +10,6 @@
  */
 package org.eclipse.che.ide.ext.java.client.refactoring.rename.wizard.similarnames;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import com.google.gwtmockito.GwtMockitoTestRunner;
 import org.eclipse.che.ide.ext.java.client.JavaLocalizationConstant;
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.RenameSettings;
@@ -21,6 +17,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /** @author Valeriy Svydenko */
 @RunWith(GwtMockitoTestRunner.class)
@@ -39,7 +39,7 @@ public class SimilarNamesConfigurationViewImplTest {
     when(view.findExactNames.getValue()).thenReturn(true);
     verify(locale).renameSimilarNamesConfigurationTitle();
 
-    assertEquals(RenameSettings.MachStrategy.EXACT, view.getMachStrategy());
+    assertEquals(RenameSettings.MachStrategy.EXACT, view.getMatchStrategy());
   }
 
   @Test
@@ -47,7 +47,7 @@ public class SimilarNamesConfigurationViewImplTest {
     when(view.findExactNames.getValue()).thenReturn(false);
     when(view.findEmbeddedNames.getValue()).thenReturn(true);
 
-    assertEquals(RenameSettings.MachStrategy.EMBEDDED, view.getMachStrategy());
+    assertEquals(RenameSettings.MachStrategy.EMBEDDED, view.getMatchStrategy());
   }
 
   @Test
@@ -56,6 +56,6 @@ public class SimilarNamesConfigurationViewImplTest {
     when(view.findEmbeddedNames.getValue()).thenReturn(false);
     when(view.findNameSuffixes.getValue()).thenReturn(true);
 
-    assertEquals(RenameSettings.MachStrategy.SUFFIX, view.getMachStrategy());
+    assertEquals(RenameSettings.MachStrategy.SUFFIX, view.getMatchStrategy());
   }
 }

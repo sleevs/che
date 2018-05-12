@@ -27,7 +27,6 @@ import javax.inject.Singleton;
 import org.eclipse.che.api.languageserver.shared.dto.DtoClientImpls.FileEditParamsDto;
 import org.eclipse.che.api.languageserver.shared.model.FileEditParams;
 import org.eclipse.che.api.languageserver.shared.util.RangeComparator;
-import org.eclipse.che.api.languageserver.util.URIUtil;
 import org.eclipse.che.api.promises.client.Function;
 import org.eclipse.che.api.promises.client.Promise;
 import org.eclipse.che.api.promises.client.PromiseError;
@@ -208,12 +207,12 @@ public class ApplyWorkspaceEditAction extends BaseAction {
       String newUri = change.getNewUri();
       String current = change.getCurrent();
 
-      Path path = Path.valueOf(URIUtil.removePrefixUri(newUri)).makeAbsolute();
+      Path path = Path.valueOf(newUri).makeAbsolute();
       if (isNullOrEmpty(current)) {
         createResource(path, notification);
         continue;
       }
-      Path oldPath = Path.valueOf(URIUtil.removePrefixUri(current)).makeAbsolute();
+      Path oldPath = Path.valueOf(current).makeAbsolute();
 
       Container workspaceRoot = appContext.getWorkspaceRoot();
       changesPromises.push(

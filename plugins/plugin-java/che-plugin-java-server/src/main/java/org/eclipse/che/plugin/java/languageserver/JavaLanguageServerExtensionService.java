@@ -10,6 +10,84 @@
  */
 package org.eclipse.che.plugin.java.languageserver;
 
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
+import com.google.inject.Inject;
+import org.eclipse.che.api.core.jsonrpc.commons.JsonRpcException;
+import org.eclipse.che.api.core.jsonrpc.commons.RequestHandlerConfigurator;
+import org.eclipse.che.api.core.notification.EventService;
+import org.eclipse.che.api.debug.shared.model.Location;
+import org.eclipse.che.api.debug.shared.model.impl.LocationImpl;
+import org.eclipse.che.api.languageserver.exception.LanguageServerException;
+import org.eclipse.che.api.languageserver.registry.InitializedLanguageServer;
+import org.eclipse.che.api.languageserver.registry.LanguageServerRegistry;
+import org.eclipse.che.api.languageserver.service.LanguageServiceUtils;
+import org.eclipse.che.api.project.server.ProjectManager;
+import org.eclipse.che.api.project.server.notification.ProjectUpdatedEvent;
+import org.eclipse.che.jdt.ls.extension.api.Commands;
+import org.eclipse.che.jdt.ls.extension.api.Severity;
+import org.eclipse.che.jdt.ls.extension.api.dto.CheWorkspaceEdit;
+import org.eclipse.che.jdt.ls.extension.api.dto.ClasspathEntry;
+import org.eclipse.che.jdt.ls.extension.api.dto.ExtendedSymbolInformation;
+import org.eclipse.che.jdt.ls.extension.api.dto.ExternalLibrariesParameters;
+import org.eclipse.che.jdt.ls.extension.api.dto.FileStructureCommandParameters;
+import org.eclipse.che.jdt.ls.extension.api.dto.ImplementersResponse;
+import org.eclipse.che.jdt.ls.extension.api.dto.Jar;
+import org.eclipse.che.jdt.ls.extension.api.dto.JarEntry;
+import org.eclipse.che.jdt.ls.extension.api.dto.JavaCoreOptions;
+import org.eclipse.che.jdt.ls.extension.api.dto.JobResult;
+import org.eclipse.che.jdt.ls.extension.api.dto.NameValidationStatus;
+import org.eclipse.che.jdt.ls.extension.api.dto.OrganizeImportParams;
+import org.eclipse.che.jdt.ls.extension.api.dto.OrganizeImportsResult;
+import org.eclipse.che.jdt.ls.extension.api.dto.ReImportMavenProjectsCommandParameters;
+import org.eclipse.che.jdt.ls.extension.api.dto.RenameSelectionParams;
+import org.eclipse.che.jdt.ls.extension.api.dto.RenameSettings;
+import org.eclipse.che.jdt.ls.extension.api.dto.RenamingElementInfo;
+import org.eclipse.che.jdt.ls.extension.api.dto.ResourceLocation;
+import org.eclipse.che.jdt.ls.extension.api.dto.TestFindParameters;
+import org.eclipse.che.jdt.ls.extension.api.dto.TestPosition;
+import org.eclipse.che.jdt.ls.extension.api.dto.TestPositionParameters;
+import org.eclipse.che.jdt.ls.extension.api.dto.UpdateClasspathParameters;
+import org.eclipse.che.jdt.ls.extension.api.dto.UpdateWorkspaceParameters;
+import org.eclipse.che.jdt.ls.extension.api.dto.UsagesResponse;
+import org.eclipse.che.plugin.java.languageserver.dto.DtoServerImpls;
+import org.eclipse.che.plugin.java.languageserver.dto.DtoServerImpls.ExtendedSymbolInformationDto;
+import org.eclipse.che.plugin.java.languageserver.dto.DtoServerImpls.ImplementersResponseDto;
+import org.eclipse.che.plugin.java.languageserver.dto.DtoServerImpls.TestPositionDto;
+import org.eclipse.lsp4j.ExecuteCommandParams;
+import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.ResourceChange;
+import org.eclipse.lsp4j.SymbolInformation;
+import org.eclipse.lsp4j.TextDocumentPositionParams;
+import org.eclipse.lsp4j.TextEdit;
+import org.eclipse.lsp4j.jsonrpc.json.adapters.CollectionTypeAdapterFactory;
+import org.eclipse.lsp4j.jsonrpc.json.adapters.EitherTypeAdapterFactory;
+import org.eclipse.lsp4j.jsonrpc.json.adapters.EnumTypeAdapterFactory;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.eclipse.lsp4j.services.LanguageServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.PostConstruct;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -58,80 +136,6 @@ import static org.eclipse.che.jdt.ls.extension.api.Commands.RESOLVE_CLASSPATH_CO
 import static org.eclipse.che.jdt.ls.extension.api.Commands.TEST_DETECT_COMMAND;
 import static org.eclipse.che.jdt.ls.extension.api.Commands.UPDATE_PROJECT_CLASSPATH;
 import static org.eclipse.che.jdt.ls.extension.api.Commands.USAGES_COMMAND;
-
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonSyntaxException;
-import com.google.gson.reflect.TypeToken;
-import com.google.inject.Inject;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import javax.annotation.PostConstruct;
-import org.eclipse.che.api.core.jsonrpc.commons.JsonRpcException;
-import org.eclipse.che.api.core.jsonrpc.commons.RequestHandlerConfigurator;
-import org.eclipse.che.api.core.notification.EventService;
-import org.eclipse.che.api.debug.shared.model.Location;
-import org.eclipse.che.api.debug.shared.model.impl.LocationImpl;
-import org.eclipse.che.api.languageserver.exception.LanguageServerException;
-import org.eclipse.che.api.languageserver.registry.InitializedLanguageServer;
-import org.eclipse.che.api.languageserver.registry.LanguageServerRegistry;
-import org.eclipse.che.api.languageserver.service.LanguageServiceUtils;
-import org.eclipse.che.api.project.server.ProjectManager;
-import org.eclipse.che.api.project.server.notification.ProjectUpdatedEvent;
-import org.eclipse.che.jdt.ls.extension.api.Commands;
-import org.eclipse.che.jdt.ls.extension.api.Severity;
-import org.eclipse.che.jdt.ls.extension.api.dto.CheWorkspaceEdit;
-import org.eclipse.che.jdt.ls.extension.api.dto.ClasspathEntry;
-import org.eclipse.che.jdt.ls.extension.api.dto.ExtendedSymbolInformation;
-import org.eclipse.che.jdt.ls.extension.api.dto.ExternalLibrariesParameters;
-import org.eclipse.che.jdt.ls.extension.api.dto.FileStructureCommandParameters;
-import org.eclipse.che.jdt.ls.extension.api.dto.ImplementersResponse;
-import org.eclipse.che.jdt.ls.extension.api.dto.Jar;
-import org.eclipse.che.jdt.ls.extension.api.dto.JarEntry;
-import org.eclipse.che.jdt.ls.extension.api.dto.JavaCoreOptions;
-import org.eclipse.che.jdt.ls.extension.api.dto.JobResult;
-import org.eclipse.che.jdt.ls.extension.api.dto.LinkedModeModel;
-import org.eclipse.che.jdt.ls.extension.api.dto.LinkedModelParams;
-import org.eclipse.che.jdt.ls.extension.api.dto.NameValidationStatus;
-import org.eclipse.che.jdt.ls.extension.api.dto.OrganizeImportParams;
-import org.eclipse.che.jdt.ls.extension.api.dto.OrganizeImportsResult;
-import org.eclipse.che.jdt.ls.extension.api.dto.ReImportMavenProjectsCommandParameters;
-import org.eclipse.che.jdt.ls.extension.api.dto.RenameSelectionParams;
-import org.eclipse.che.jdt.ls.extension.api.dto.RenameSettings;
-import org.eclipse.che.jdt.ls.extension.api.dto.RenameWizardType;
-import org.eclipse.che.jdt.ls.extension.api.dto.ResourceLocation;
-import org.eclipse.che.jdt.ls.extension.api.dto.TestFindParameters;
-import org.eclipse.che.jdt.ls.extension.api.dto.TestPosition;
-import org.eclipse.che.jdt.ls.extension.api.dto.TestPositionParameters;
-import org.eclipse.che.jdt.ls.extension.api.dto.UpdateClasspathParameters;
-import org.eclipse.che.jdt.ls.extension.api.dto.UpdateWorkspaceParameters;
-import org.eclipse.che.jdt.ls.extension.api.dto.UsagesResponse;
-import org.eclipse.che.plugin.java.languageserver.dto.DtoServerImpls;
-import org.eclipse.che.plugin.java.languageserver.dto.DtoServerImpls.ExtendedSymbolInformationDto;
-import org.eclipse.che.plugin.java.languageserver.dto.DtoServerImpls.ImplementersResponseDto;
-import org.eclipse.che.plugin.java.languageserver.dto.DtoServerImpls.TestPositionDto;
-import org.eclipse.lsp4j.ExecuteCommandParams;
-import org.eclipse.lsp4j.SymbolInformation;
-import org.eclipse.lsp4j.TextDocumentPositionParams;
-import org.eclipse.lsp4j.jsonrpc.json.adapters.CollectionTypeAdapterFactory;
-import org.eclipse.lsp4j.jsonrpc.json.adapters.EitherTypeAdapterFactory;
-import org.eclipse.lsp4j.jsonrpc.json.adapters.EnumTypeAdapterFactory;
-import org.eclipse.lsp4j.jsonrpc.messages.Either;
-import org.eclipse.lsp4j.services.LanguageServer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This service makes custom commands in our jdt.ls extension available to clients.
@@ -279,8 +283,8 @@ public class JavaLanguageServerExtensionService {
         .newConfiguration()
         .methodName(REFACTORING_GET_RENAME_TYPE)
         .paramsAsDto(RenameSelectionParams.class)
-        .resultAsDto(RenameWizardType.class)
-        .withFunction(this::getRenameType);
+        .resultAsDto(RenamingElementInfo.class)
+        .withFunction(this::getRenamingElementInfo);
 
     requestHandler
         .newConfiguration()
@@ -292,9 +296,9 @@ public class JavaLanguageServerExtensionService {
     requestHandler
         .newConfiguration()
         .methodName(GET_LINKED_MODEL)
-        .paramsAsDto(LinkedModelParams.class)
-        .resultAsDto(LinkedModeModel.class)
-        .withFunction(this::getLinkedModel);
+        .paramsAsDto(TextDocumentPositionParams.class)
+        .resultAsListOfDto(Range.class)
+        .withFunction(this::getLinkedElements);
   }
 
   /**
@@ -642,11 +646,43 @@ public class JavaLanguageServerExtensionService {
     String uri = renameSettings.getRenameParams().getTextDocument().getUri();
     renameSettings.getRenameParams().getTextDocument().setUri(prefixURI(uri));
 
-    return doGetOne(RENAME_COMMAND, singletonList(renameSettings), type);
+    CheWorkspaceEdit cheWorkspaceEdit =
+        doGetOne(RENAME_COMMAND, singletonList(renameSettings), type);
+    List<ResourceChange> resourceChanges = getResourceChanges(cheWorkspaceEdit);
+    cheWorkspaceEdit.setResourceChanges(resourceChanges);
+    cheWorkspaceEdit.setChanges(getTextChanges(cheWorkspaceEdit));
+    return cheWorkspaceEdit;
   }
 
-  private RenameWizardType getRenameType(RenameSelectionParams renameSelection) {
-    Type type = new TypeToken<RenameWizardType>() {}.getType();
+  private List<ResourceChange> getResourceChanges(CheWorkspaceEdit cheWorkspaceEdit) {
+    return cheWorkspaceEdit
+        .getResourceChanges()
+        .stream()
+        .peek(
+            each -> {
+              String current = each.getCurrent();
+              String newUri = each.getNewUri();
+              if (current != null) {
+                each.setCurrent(LanguageServiceUtils.removePrefixUri(current));
+              }
+              if (newUri != null) {
+                each.setNewUri(LanguageServiceUtils.removePrefixUri(newUri));
+              }
+            })
+        .collect(Collectors.toList());
+  }
+
+  private Map<String, List<TextEdit>> getTextChanges(CheWorkspaceEdit cheWorkspaceEdit) {
+    Map<String, List<TextEdit>> changes = new LinkedHashMap<>();
+    for (String uri : cheWorkspaceEdit.getChanges().keySet()) {
+      changes.put(
+          LanguageServiceUtils.removePrefixUri(uri), cheWorkspaceEdit.getChanges().get(uri));
+    }
+    return changes;
+  }
+
+  private RenamingElementInfo getRenamingElementInfo(RenameSelectionParams renameSelection) {
+    Type type = new TypeToken<RenamingElementInfo>() {}.getType();
     String uri = renameSelection.getResourceUri();
     renameSelection.setResourceUri(prefixURI(uri));
 
@@ -662,12 +698,13 @@ public class JavaLanguageServerExtensionService {
         Commands.VALIDATE_RENAMED_NAME_COMMAND, singletonList(renameSelectionParams), type);
   }
 
-  private LinkedModeModel getLinkedModel(LinkedModelParams linkedModelParams) {
-    Type type = new TypeToken<LinkedModeModel>() {}.getType();
-    String uri = linkedModelParams.getUri();
-    linkedModelParams.setUri(prefixURI(uri));
+  private List<Range> getLinkedElements(TextDocumentPositionParams textDocumentPositionParams) {
+    Type type = new TypeToken<List<Range>>() {}.getType();
+    String uri = textDocumentPositionParams.getTextDocument().getUri();
+    textDocumentPositionParams.getTextDocument().setUri(prefixURI(uri));
 
-    return doGetOne(Commands.GET_LINKED_MODE_COMMAND, singletonList(linkedModelParams), type);
+    return doGetOne(
+        Commands.GET_LINKED_ELEMENTS_COMMAND, singletonList(textDocumentPositionParams), type);
   }
 
   private List<String> executeFindTestsCommand(

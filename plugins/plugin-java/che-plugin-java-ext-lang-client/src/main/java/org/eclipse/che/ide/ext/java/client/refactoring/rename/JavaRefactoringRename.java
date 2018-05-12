@@ -10,17 +10,11 @@
  */
 package org.eclipse.che.ide.ext.java.client.refactoring.rename;
 
-import static org.eclipse.che.ide.api.editor.events.FileEvent.FileOperation.CLOSE;
-import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
-import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
-
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
 import org.eclipse.che.ide.api.editor.EditorWithAutoSave;
+import org.eclipse.che.ide.api.editor.document.Document;
 import org.eclipse.che.ide.api.editor.events.FileEvent;
 import org.eclipse.che.ide.api.editor.events.FileEvent.FileEventHandler;
 import org.eclipse.che.ide.api.editor.link.HasLinkedMode;
@@ -42,22 +36,27 @@ import org.eclipse.che.ide.ext.java.client.refactoring.move.RefactoredItemType;
 import org.eclipse.che.ide.ext.java.client.refactoring.rename.wizard.RenamePresenter;
 import org.eclipse.che.ide.ext.java.client.service.JavaLanguageExtensionServiceClient;
 import org.eclipse.che.ide.ui.dialogs.DialogFactory;
-import org.eclipse.che.jdt.ls.extension.api.RenameType;
-import org.eclipse.che.jdt.ls.extension.api.dto.LinkedData;
-import org.eclipse.che.jdt.ls.extension.api.dto.LinkedModeModel;
-import org.eclipse.che.jdt.ls.extension.api.dto.LinkedModelParams;
-import org.eclipse.che.jdt.ls.extension.api.dto.LinkedPositionGroup;
-import org.eclipse.che.jdt.ls.extension.api.dto.Region;
+import org.eclipse.che.jdt.ls.extension.api.RenameKind;
 import org.eclipse.che.jdt.ls.extension.api.dto.RenameSettings;
 import org.eclipse.che.plugin.languageserver.ide.editor.quickassist.ApplyWorkspaceEditAction;
 import org.eclipse.che.plugin.languageserver.ide.service.TextDocumentServiceClient;
 import org.eclipse.che.plugin.languageserver.ide.util.DtoBuildHelper;
 import org.eclipse.lsp4j.DidCloseTextDocumentParams;
+import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.RenameParams;
 import org.eclipse.lsp4j.ResourceChange;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
+import org.eclipse.lsp4j.TextDocumentPositionParams;
 import org.eclipse.lsp4j.WorkspaceEdit;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+
+import static org.eclipse.che.ide.api.editor.events.FileEvent.FileOperation.CLOSE;
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
+import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 
 /**
  * Class for rename refactoring java classes
@@ -156,25 +155,26 @@ public class JavaRefactoringRename implements FileEventHandler {
 
   private void createLinkedRename() {
     cursorPosition = textEditor.getCursorPosition();
-    LinkedModelParams params = dtoFactory.createDto(LinkedModelParams.class);
-    params.setUri(textEditor.getDocument().getFile().getLocation().toString());
-    params.setOffset(textEditor.getCursorOffset());
+
+    Document document = textEditor.getDocument();
+    TextDocumentPositionParams params =
+        dtoBuildHelper.createTDPP(document, textEditor.getCursorOffset());
 
     extensionServiceClient
         .getLinkedModeModel(params)
         .then(
-            linkedModeModel -> {
+            ranges -> {
               clientServerEventService
                   .sendFileTrackingSuspendEvent()
                   .then(
                       success -> {
-                        if (linkedModeModel == null) {
+                        if (ranges == null || ranges.isEmpty()) {
                           showError();
                           isActiveLinkedEditor = false;
                           clientServerEventService.sendFileTrackingResumeEvent();
                           return;
                         }
-                        activateLinkedModeIntoEditor(linkedModeModel);
+                        activateLinkedModeIntoEditor(ranges);
                       });
             })
         .catchError(
@@ -199,27 +199,21 @@ public class JavaRefactoringRename implements FileEventHandler {
     return isActiveLinkedEditor;
   }
 
-  private void activateLinkedModeIntoEditor(LinkedModeModel linkedModeModel) {
+  private void activateLinkedModeIntoEditor(List<Range> ranges) {
     sendCloseEvent();
     mode = linkedEditor.getLinkedMode();
     LinkedModel model = linkedEditor.createLinkedModel();
     List<LinkedModelGroup> groups = new ArrayList<>();
-    for (LinkedPositionGroup positionGroup : linkedModeModel.getGroups()) {
-      LinkedModelGroup group = linkedEditor.createLinkedGroup();
-      LinkedData data = positionGroup.getLinkedData();
-      if (data != null) {
-        LinkedModelData modelData = linkedEditor.createLinkedModelData();
-        modelData.setType("link");
-        modelData.setValues(data.getValues());
-        group.setData(modelData);
-      }
-      List<Position> positions = new ArrayList<>();
-      for (Region region : positionGroup.getPositions()) {
-        positions.add(new Position(region.getOffset(), region.getLength()));
-      }
-      group.setPositions(positions);
-      groups.add(group);
+    LinkedModelGroup group = linkedEditor.createLinkedGroup();
+    List<Position> positions = new ArrayList<>();
+    for (Range range : ranges) {
+      LinkedModelData modelData = linkedEditor.createLinkedModelData();
+      modelData.setType("link");
+      group.setData(modelData);
+      positions.add(createPositionFromRange(range, textEditor.getDocument()));
     }
+    group.setPositions(positions);
+    groups.add(group);
     model.setGroups(groups);
     disableAutoSave();
 
@@ -242,7 +236,7 @@ public class JavaRefactoringRename implements FileEventHandler {
               isActiveLinkedEditor = false;
 
               boolean isNameChanged = start >= 0 && end >= 0;
-              if (!isSuccessful && isNameChanged) {
+              if (!isSuccessful && isNameChanged && textEditor.isDirty()) {
                 undoChanges();
               }
 
@@ -257,6 +251,33 @@ public class JavaRefactoringRename implements FileEventHandler {
             }
           }
         });
+  }
+
+  private Position createPositionFromRange(Range range, Document document) {
+    int start =
+        document.getIndexFromPosition(
+            new TextPosition(range.getStart().getLine(), range.getStart().getCharacter()));
+    int end =
+        document.getIndexFromPosition(
+            new TextPosition(range.getEnd().getLine(), range.getEnd().getCharacter()));
+
+    if (start == -1 && end == -1) {
+      return new Position(0);
+    }
+
+    if (start == -1) {
+      return new Position(end);
+    }
+
+    if (end == -1) {
+      return new Position(start);
+    }
+
+    int length = end - start;
+    if (length < 0) {
+      return null;
+    }
+    return new Position(start, length);
   }
 
   private void sendCloseEvent() {
@@ -286,7 +307,7 @@ public class JavaRefactoringRename implements FileEventHandler {
 
     settings.setUpdateReferences(true);
     settings.setRenameParams(renameParams);
-    settings.setRenameType(RenameType.JAVA_ELEMENT);
+    settings.setRenameKind(RenameKind.JAVA_ELEMENT);
 
     extensionServiceClient
         .rename(settings)

@@ -10,12 +10,8 @@
  */
 package org.eclipse.che.ide.ext.java.client.refactoring.rename.wizard;
 
-import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
-import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
-
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import java.util.LinkedList;
 import org.eclipse.che.api.promises.client.Promise;
 import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter;
@@ -33,11 +29,11 @@ import org.eclipse.che.ide.ext.java.client.refactoring.preview.PreviewPresenter;
 import org.eclipse.che.ide.ext.java.client.refactoring.rename.wizard.RenameView.ActionDelegate;
 import org.eclipse.che.ide.ext.java.client.refactoring.rename.wizard.similarnames.SimilarNamesConfigurationPresenter;
 import org.eclipse.che.ide.ext.java.client.service.JavaLanguageExtensionServiceClient;
-import org.eclipse.che.jdt.ls.extension.api.RenameType;
+import org.eclipse.che.jdt.ls.extension.api.RenameKind;
 import org.eclipse.che.jdt.ls.extension.api.dto.CheWorkspaceEdit;
 import org.eclipse.che.jdt.ls.extension.api.dto.RenameSelectionParams;
 import org.eclipse.che.jdt.ls.extension.api.dto.RenameSettings;
-import org.eclipse.che.jdt.ls.extension.api.dto.RenameWizardType;
+import org.eclipse.che.jdt.ls.extension.api.dto.RenamingElementInfo;
 import org.eclipse.che.plugin.languageserver.ide.editor.quickassist.ApplyWorkspaceEditAction;
 import org.eclipse.che.plugin.languageserver.ide.util.DtoBuildHelper;
 import org.eclipse.lsp4j.RenameParams;
@@ -45,6 +41,11 @@ import org.eclipse.lsp4j.ResourceChange;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.WorkspaceEdit;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+
+import java.util.LinkedList;
+
+import static org.eclipse.che.ide.api.notification.StatusNotification.DisplayMode.FLOAT_MODE;
+import static org.eclipse.che.ide.api.notification.StatusNotification.Status.FAIL;
 
 /**
  * The class that manages Rename panel widget.
@@ -111,15 +112,15 @@ public class RenamePresenter implements ActionDelegate, RefactoringActionDelegat
       String location =
           editorAgent.getActiveEditor().getEditorInput().getFile().getLocation().toString();
       params.setResourceUri(location);
-      params.setRenameType(RenameType.JAVA_ELEMENT);
+      params.setRenameKind(RenameKind.JAVA_ELEMENT);
     } else {
       // get selected resource
       Resource resource = refactorInfo.getResources()[0];
       params.setResourceUri(resource.getLocation().toString());
       if (RefactoredItemType.COMPILATION_UNIT.equals(refactorInfo.getRefactoredItemType())) {
-        params.setRenameType(RenameType.COMPILATION_UNIT);
+        params.setRenameKind(RenameKind.COMPILATION_UNIT);
       } else {
-        params.setRenameType(RenameType.PACKAGE);
+        params.setRenameKind(RenameKind.PACKAGE);
       }
     }
 
@@ -133,10 +134,10 @@ public class RenamePresenter implements ActionDelegate, RefactoringActionDelegat
             });
   }
 
-  private void showWizard(RenameWizardType renameWizard) {
-    prepareWizard(renameWizard.getElementName());
+  private void showWizard(RenamingElementInfo elementInfo) {
+    prepareWizard(elementInfo.getElementName());
 
-    switch (renameWizard.getRenameType()) {
+    switch (elementInfo.getRenameKind()) {
       case COMPILATION_UNIT:
         view.setTitleCaption(locale.renameCompilationUnitTitle());
         view.setVisiblePatternsPanel(true);
@@ -228,15 +229,15 @@ public class RenamePresenter implements ActionDelegate, RefactoringActionDelegat
       position.setCharacter(cursorPosition.getCharacter());
       position.setLine(cursorPosition.getLine());
       params.setPosition(position);
-      params.setRenameType(RenameType.JAVA_ELEMENT);
+      params.setRenameKind(RenameKind.JAVA_ELEMENT);
       String location =
           editorAgent.getActiveEditor().getEditorInput().getFile().getLocation().toString();
       params.setResourceUri(location);
     } else if (RefactoredItemType.COMPILATION_UNIT.equals(refactorInfo.getRefactoredItemType())) {
-      params.setRenameType(RenameType.COMPILATION_UNIT);
+      params.setRenameKind(RenameKind.COMPILATION_UNIT);
       params.setResourceUri(refactorInfo.getResources()[0].getLocation().toString());
     } else if (RefactoredItemType.PACKAGE.equals(refactorInfo.getRefactoredItemType())) {
-      params.setRenameType(RenameType.PACKAGE);
+      params.setRenameKind(RenameKind.PACKAGE);
       params.setResourceUri(refactorInfo.getResources()[0].getLocation().toString());
     }
 
@@ -313,15 +314,15 @@ public class RenamePresenter implements ActionDelegate, RefactoringActionDelegat
       position.setCharacter(cursorPosition.getCharacter());
       position.setLine(cursorPosition.getLine());
       renameParams.setPosition(position);
-      renameSettings.setRenameType(RenameType.JAVA_ELEMENT);
+      renameSettings.setRenameKind(RenameKind.JAVA_ELEMENT);
     } else if (RefactoredItemType.COMPILATION_UNIT.equals(refactorInfo.getRefactoredItemType())) {
-      renameSettings.setRenameType(RenameType.COMPILATION_UNIT);
+      renameSettings.setRenameKind(RenameKind.COMPILATION_UNIT);
       TextDocumentIdentifier textDocumentIdentifier =
           dtoFactory.createDto(TextDocumentIdentifier.class);
       textDocumentIdentifier.setUri(refactorInfo.getResources()[0].getLocation().toString());
       renameParams.setTextDocument(textDocumentIdentifier);
     } else if (RefactoredItemType.PACKAGE.equals(refactorInfo.getRefactoredItemType())) {
-      renameSettings.setRenameType(RenameType.PACKAGE);
+      renameSettings.setRenameKind(RenameKind.PACKAGE);
       TextDocumentIdentifier textDocumentIdentifier =
           dtoFactory.createDto(TextDocumentIdentifier.class);
       textDocumentIdentifier.setUri(refactorInfo.getResources()[0].getLocation().toString());
@@ -357,8 +358,7 @@ public class RenamePresenter implements ActionDelegate, RefactoringActionDelegat
     renameSettings.setUpdateTextualMatches(view.isUpdateTextualOccurrences());
     renameSettings.setUpdateSimilarDeclarations(view.isUpdateSimilarlyVariables());
     if (view.isUpdateSimilarlyVariables()) {
-      renameSettings.setMachStrategy(
-          similarNamesConfigurationPresenter.getMachStrategy().getValue());
+      renameSettings.setMatchStrategy(similarNamesConfigurationPresenter.getMatchStrategy());
     }
 
     return renameSettings;
