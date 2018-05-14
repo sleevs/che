@@ -10,10 +10,35 @@
  */
 package org.eclipse.che.ide.ext.java.client.service;
 
+import static org.eclipse.che.api.promises.client.js.JsPromiseError.create;
+import static org.eclipse.che.ide.api.jsonrpc.Constants.WS_AGENT_JSON_RPC_ENDPOINT_ID;
+import static org.eclipse.che.ide.ext.java.shared.Constants.CLASS_PATH_TREE;
+import static org.eclipse.che.ide.ext.java.shared.Constants.EFFECTIVE_POM;
+import static org.eclipse.che.ide.ext.java.shared.Constants.EFFECTIVE_POM_REQUEST_TIMEOUT;
+import static org.eclipse.che.ide.ext.java.shared.Constants.EXTERNAL_LIBRARIES;
+import static org.eclipse.che.ide.ext.java.shared.Constants.EXTERNAL_LIBRARIES_CHILDREN;
+import static org.eclipse.che.ide.ext.java.shared.Constants.EXTERNAL_LIBRARY_CHILDREN;
+import static org.eclipse.che.ide.ext.java.shared.Constants.EXTERNAL_LIBRARY_ENTRY;
+import static org.eclipse.che.ide.ext.java.shared.Constants.FILE_STRUCTURE;
+import static org.eclipse.che.ide.ext.java.shared.Constants.GET_JAVA_CORE_OPTIONS;
+import static org.eclipse.che.ide.ext.java.shared.Constants.GET_LINKED_MODEL;
+import static org.eclipse.che.ide.ext.java.shared.Constants.IMPLEMENTERS;
+import static org.eclipse.che.ide.ext.java.shared.Constants.ORGANIZE_IMPORTS;
+import static org.eclipse.che.ide.ext.java.shared.Constants.RECOMPUTE_POM_DIAGNOSTICS;
+import static org.eclipse.che.ide.ext.java.shared.Constants.REFACTORING_GET_RENAME_TYPE;
+import static org.eclipse.che.ide.ext.java.shared.Constants.REFACTORING_RENAME;
+import static org.eclipse.che.ide.ext.java.shared.Constants.REIMPORT_MAVEN_PROJECTS;
+import static org.eclipse.che.ide.ext.java.shared.Constants.REIMPORT_MAVEN_PROJECTS_REQUEST_TIMEOUT;
+import static org.eclipse.che.ide.ext.java.shared.Constants.REQUEST_TIMEOUT;
+import static org.eclipse.che.ide.ext.java.shared.Constants.UPDATE_JAVA_CORE_OPTIONS;
+import static org.eclipse.che.ide.ext.java.shared.Constants.USAGES;
+import static org.eclipse.che.ide.ext.java.shared.Constants.VALIDATE_RENAMED_NAME;
+
 import com.google.gwt.jsonp.client.TimeoutException;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
+import java.util.List;
 import org.eclipse.che.api.core.jsonrpc.commons.RequestHandlerConfigurator;
 import org.eclipse.che.api.core.jsonrpc.commons.RequestTransmitter;
 import org.eclipse.che.api.promises.client.Promise;
@@ -43,32 +68,6 @@ import org.eclipse.che.plugin.languageserver.ide.service.ServiceUtil;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.TextDocumentPositionParams;
 import org.eclipse.lsp4j.WorkspaceEdit;
-
-import java.util.List;
-
-import static org.eclipse.che.api.promises.client.js.JsPromiseError.create;
-import static org.eclipse.che.ide.api.jsonrpc.Constants.WS_AGENT_JSON_RPC_ENDPOINT_ID;
-import static org.eclipse.che.ide.ext.java.shared.Constants.CLASS_PATH_TREE;
-import static org.eclipse.che.ide.ext.java.shared.Constants.EFFECTIVE_POM;
-import static org.eclipse.che.ide.ext.java.shared.Constants.EFFECTIVE_POM_REQUEST_TIMEOUT;
-import static org.eclipse.che.ide.ext.java.shared.Constants.EXTERNAL_LIBRARIES;
-import static org.eclipse.che.ide.ext.java.shared.Constants.EXTERNAL_LIBRARIES_CHILDREN;
-import static org.eclipse.che.ide.ext.java.shared.Constants.EXTERNAL_LIBRARY_CHILDREN;
-import static org.eclipse.che.ide.ext.java.shared.Constants.EXTERNAL_LIBRARY_ENTRY;
-import static org.eclipse.che.ide.ext.java.shared.Constants.FILE_STRUCTURE;
-import static org.eclipse.che.ide.ext.java.shared.Constants.GET_JAVA_CORE_OPTIONS;
-import static org.eclipse.che.ide.ext.java.shared.Constants.GET_LINKED_MODEL;
-import static org.eclipse.che.ide.ext.java.shared.Constants.IMPLEMENTERS;
-import static org.eclipse.che.ide.ext.java.shared.Constants.ORGANIZE_IMPORTS;
-import static org.eclipse.che.ide.ext.java.shared.Constants.RECOMPUTE_POM_DIAGNOSTICS;
-import static org.eclipse.che.ide.ext.java.shared.Constants.REFACTORING_GET_RENAME_TYPE;
-import static org.eclipse.che.ide.ext.java.shared.Constants.REFACTORING_RENAME;
-import static org.eclipse.che.ide.ext.java.shared.Constants.REIMPORT_MAVEN_PROJECTS;
-import static org.eclipse.che.ide.ext.java.shared.Constants.REIMPORT_MAVEN_PROJECTS_REQUEST_TIMEOUT;
-import static org.eclipse.che.ide.ext.java.shared.Constants.REQUEST_TIMEOUT;
-import static org.eclipse.che.ide.ext.java.shared.Constants.UPDATE_JAVA_CORE_OPTIONS;
-import static org.eclipse.che.ide.ext.java.shared.Constants.USAGES;
-import static org.eclipse.che.ide.ext.java.shared.Constants.VALIDATE_RENAMED_NAME;
 
 @Singleton
 public class JavaLanguageExtensionServiceClient {
